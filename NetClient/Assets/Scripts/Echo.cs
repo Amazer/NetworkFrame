@@ -11,6 +11,7 @@ public class Echo : MonoBehaviour
     Socket socket;
     byte[] readBuffer = new byte[1024];
     string recvStr = "";
+    string sendStr = "";
 
     public InputField inputField;
     public Text text;
@@ -23,7 +24,26 @@ public class Echo : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        text.text = recvStr;
+        if (socket == null)
+        {
+            return;
+        }
+        if (sendStr != "")
+        {
+            if (socket.Poll(0, SelectMode.SelectWrite))
+            {
+                byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
+                socket.Send(sendBytes);
+                sendStr = "";
+            }
+        }
+        if (socket.Poll(0, SelectMode.SelectRead))
+        {
+            int count = socket.Receive(readBuffer);
+            recvStr = System.Text.Encoding.Default.GetString(readBuffer, 0, count);
+            Debug.Log("Receive sucsssue!:" + recvStr);
+            text.text = recvStr;
+        }
     }
 
     public void Connection()
@@ -38,8 +58,6 @@ public class Echo : MonoBehaviour
             Socket socket = (Socket)ar.AsyncState;
             socket.EndConnect(ar);
             Debug.Log("Socket connect Success!");
-
-            socket.BeginReceive(readBuffer, 0, 1024, 0, ReceiveCallback, socket);
         }
         catch (SocketException ex)
         {
@@ -47,43 +65,10 @@ public class Echo : MonoBehaviour
         }
 
     }
-    private void ReceiveCallback(IAsyncResult ar)
-    {
-        try
-        {
-            Socket socket = (Socket)ar.AsyncState;
-            int count = socket.EndReceive(ar);
-            recvStr = System.Text.Encoding.Default.GetString(readBuffer, 0, count);
-
-            Debug.Log("Receive sucsssue!:" + recvStr);
-            socket.BeginReceive(readBuffer, 0, 1024, 0, ReceiveCallback, socket);
-        }
-        catch (SocketException ex)
-        {
-            Debug.LogError("Receive error:" + ex.ToString());
-        }
-    }
     public void Send()
     {
-        string sendStr = inputField.text;
+        sendStr = inputField.text;
         inputField.text = "";
-        byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
-        socket.Send(sendBytes);
-        socket.BeginSend(sendBytes, 0, sendBytes.Length, 0, SendCallback, socket);
-    }
-    private void SendCallback(IAsyncResult ar)
-    {
-        try
-        {
-            Socket socket = (Socket)ar.AsyncState;
-            int count= socket.EndSend(ar);
-            Debug.Log("send ok!");
-        }
-        catch(SocketException ex)
-        {
-            Debug.LogError("send error:" + ex.ToString());
-        }
-
     }
     private void OnApplicationQuit()
     {

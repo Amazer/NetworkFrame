@@ -16,6 +16,7 @@ namespace NetServer
             public byte[] readBuffer = new byte[1024];
         }
         static Dictionary<Socket, ClientState> clientDic = new Dictionary<Socket, ClientState>();
+        static string sendStr = null;
         static void Main(string[] args)
         {
             Console.WriteLine("hello world!");
@@ -30,72 +31,64 @@ namespace NetServer
             listenfd.Bind(ipEp);
             listenfd.Listen(0);
             Console.WriteLine("【服务器】启动成功！");
-
-            listenfd.BeginAccept(AcceptCallback, listenfd);
-            
-
-        }
-        static void AcceptCallback(IAsyncResult ar)
-        {
-            try
+            while (true)
             {
-                Socket listenfd = (Socket)ar.AsyncState;
-                Socket clientfd = listenfd.EndAccept(ar);
-                ClientState cs = new ClientState();
-                cs.socket = clientfd;
-                clientDic.Add(clientfd, cs);
-                clientfd.BeginReceive(cs.readBuffer, 0, 1024, 0, ReceiveCallback, cs.socket);
-                Console.WriteLine("【服务器】Accetp！");
-
-                listenfd.BeginAccept(AcceptCallback, listenfd);
-            }
-            catch(SocketException ex)
-            {
-                Console.WriteLine("accept error:" + ex.ToString());
-            }
-
-        }
-        static void ReceiveCallback(IAsyncResult ar)
-        {
-            try
-            {
-                Socket clientfd = (Socket)ar.AsyncState;
-                ClientState cs = clientDic[clientfd];
-                int count = clientfd.EndReceive(ar);
-                if(count ==0)
+                if (listenfd.Poll(0, SelectMode.SelectRead))
                 {
-                    clientfd.Close();
-                    clientDic.Remove(clientfd);
-                    Console.WriteLine("【Socket Close】");
-                    return;
+                    ReadListenfd(listenfd);
                 }
-                string recvStr = System.Text.Encoding.Default.GetString(cs.readBuffer, 0, count);
-                Console.WriteLine("【服务器接收】"+recvStr);
-                byte[] sendBytes = System.Text.Encoding.Default.GetBytes(recvStr);
-                clientfd.BeginSend(sendBytes, 0, sendBytes.Length, 0, SendCallback, clientfd);
-                Console.WriteLine("【服务器发送】"+recvStr);
+                foreach (var v in clientDic.Values)
+                {
+                    if (v.socket.Poll(0, SelectMode.SelectRead))
+                    {
+                        if (!ReadClientfd(v.socket))
+                        {
+                            break;
 
-                clientfd.BeginReceive(cs.readBuffer, 0, 1024, 0, ReceiveCallback, clientfd);
-
+                        }
+                    }
+                }
+                System.Threading.Thread.Sleep(15);
             }
-            catch(SocketException ex)
-            {
-                Console.WriteLine("receive error:" + ex.ToString());
-            }
-
         }
-        static void SendCallback(IAsyncResult ar)
+        static void ReadListenfd(Socket socket)
         {
+            Console.WriteLine("【服务器】Accetp！");
+            Socket clientfd = socket.Accept();
+            ClientState cs = new ClientState();
+            cs.socket = clientfd;
+            clientDic.Add(clientfd, cs);
+        }
+        static bool ReadClientfd(Socket socket)
+        {
+            ClientState cs = clientDic[socket];
+
+            int count = 0;
             try
             {
-                Socket connfd = (Socket)ar.AsyncState;
-                int count = connfd.EndSend(ar);
+                count = cs.socket.Receive(cs.readBuffer);
             }
             catch(SocketException ex)
             {
-                Console.WriteLine("send error:" + ex.ToString());
-            }
 
+                Console.WriteLine("ReadClientfd exception:"+ex.ToString());
+            }
+            if (count == 0)
+            {
+                socket.Close();
+                clientDic.Remove(socket);
+                Console.WriteLine("【Socket Close】");
+                return false;
+            }
+            string recvStr = System.Text.Encoding.Default.GetString(cs.readBuffer, 0, count);
+            Console.WriteLine("【服务器接收】" + recvStr);
+            sendStr =socket.RemoteEndPoint.ToString()+":"+ recvStr;
+            byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
+            foreach(var v in clientDic.Values)
+            {
+                v.socket.Send(sendBytes);
+            }
+            return true;
         }
     }
 }
