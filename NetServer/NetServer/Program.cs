@@ -31,21 +31,25 @@ namespace NetServer
             listenfd.Bind(ipEp);
             listenfd.Listen(0);
             Console.WriteLine("【服务器】启动成功！");
+            List<Socket> checkList = new List<Socket>();
             while (true)
             {
-                if (listenfd.Poll(0, SelectMode.SelectRead))
+                checkList.Clear();
+                checkList.Add(listenfd);
+                foreach(var v in clientDic.Values)
                 {
-                    ReadListenfd(listenfd);
+                    checkList.Add(v.socket);
                 }
-                foreach (var v in clientDic.Values)
+                Socket.Select(checkList, null, null, 1000);
+                foreach(var v in checkList)
                 {
-                    if (v.socket.Poll(0, SelectMode.SelectRead))
+                    if(v==listenfd)
                     {
-                        if (!ReadClientfd(v.socket))
-                        {
-                            break;
-
-                        }
+                        ReadListenfd(v);
+                    }
+                    else
+                    {
+                        ReadClientfd(v);
                     }
                 }
                 System.Threading.Thread.Sleep(15);
