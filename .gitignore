@@ -17,4 +17,5 @@ test/*
 */app/*
 */obj/*
 */OtherRes/*
+*/bin/
 
