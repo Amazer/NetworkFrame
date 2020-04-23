@@ -21,7 +21,7 @@ namespace NetServer
         {
             Console.WriteLine("hello world!");
             SocketFunc();
-            Console.Read();
+            //            Console.Read();
         }
         static void SocketFunc()
         {
@@ -36,14 +36,14 @@ namespace NetServer
             {
                 checkList.Clear();
                 checkList.Add(listenfd);
-                foreach(var v in clientDic.Values)
+                foreach (var v in clientDic.Values)
                 {
                     checkList.Add(v.socket);
                 }
-                Socket.Select(checkList, null, null, 1000);
-                foreach(var v in checkList)
+                Socket.Select(checkList, null, null, 0);
+                foreach (var v in checkList)
                 {
-                    if(v==listenfd)
+                    if (v == listenfd)
                     {
                         ReadListenfd(v);
                     }
@@ -72,10 +72,10 @@ namespace NetServer
             {
                 count = cs.socket.Receive(cs.readBuffer);
             }
-            catch(SocketException ex)
+            catch (SocketException ex)
             {
 
-                Console.WriteLine("ReadClientfd exception:"+ex.ToString());
+                Console.WriteLine("ReadClientfd exception:" + ex.ToString());
             }
             if (count == 0)
             {
@@ -84,13 +84,19 @@ namespace NetServer
                 Console.WriteLine("【Socket Close】");
                 return false;
             }
-            string recvStr = System.Text.Encoding.Default.GetString(cs.readBuffer, 0, count);
+            string recvStr = System.Text.Encoding.Default.GetString(cs.readBuffer, 2, count - 2);
             Console.WriteLine("【服务器接收】" + recvStr);
-            sendStr =socket.RemoteEndPoint.ToString()+":"+ recvStr;
+
+            sendStr = socket.RemoteEndPoint.ToString() + ":" + recvStr;
             byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
-            foreach(var v in clientDic.Values)
+            byte[] sendLength = BitConverter.GetBytes((Int16)sendBytes.Length);
+            sendBytes = sendLength.Concat(sendBytes).ToArray();
+
+            Console.WriteLine("【服务器】 转发:" + Encoding.Default.GetString(sendBytes));
+            foreach (var v in clientDic.Values)
             {
-                v.socket.Send(sendBytes);
+                int sendCount = v.socket.Send(sendBytes);
+                //                Console.WriteLine("【服务器】 sendCount:" + sendCount);
             }
             return true;
         }

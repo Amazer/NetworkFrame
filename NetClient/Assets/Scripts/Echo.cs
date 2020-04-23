@@ -4,12 +4,15 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Net.Sockets;
 using System;
+using System.Linq;
 
 public class Echo : MonoBehaviour
 {
 
+    const int MaxCount = 1024;
     Socket socket;
-    byte[] readBuffer = new byte[1024];
+    byte[] readBuffer = new byte[MaxCount];
+    int bufferCount = 0;        // 接收的数据的count
     string recvStr = "";
     string sendStr = "";
 
@@ -33,17 +36,51 @@ public class Echo : MonoBehaviour
             if (socket.Poll(0, SelectMode.SelectWrite))
             {
                 byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
+                byte[] bodyLen = BitConverter.GetBytes((Int16)sendBytes.Length);
+                sendBytes = bodyLen.Concat(sendBytes).ToArray();
+
                 socket.Send(sendBytes);
                 sendStr = "";
             }
         }
         if (socket.Poll(0, SelectMode.SelectRead))
         {
-            int count = socket.Receive(readBuffer);
-            recvStr = System.Text.Encoding.Default.GetString(readBuffer, 0, count);
-            Debug.Log("Receive sucsssue!:" + recvStr);
-            text.text = recvStr;
+            Debug.Log("before Receive bufferCount:"+bufferCount);
+            int count = socket.Receive(readBuffer, bufferCount, MaxCount - bufferCount, 0);
+
+            Debug.Log("Receive count:"+count);
+            bufferCount += count;
+            ReceiveOneData();
         }
+    }
+    private void ReceiveOneData()
+    {
+        Debug.Log("ReceiveOneData 1: bufferCount:"+bufferCount);
+        Debug.Log("ReceiveOneData 2: readBuffer:"+System.Text.Encoding.Default.GetString(readBuffer,0,bufferCount));
+        if(bufferCount<=2)
+        {
+            return;
+        }
+
+        Int16 bodyLength = BitConverter.ToInt16(readBuffer, 0);
+        Debug.Log("ReceiveOneData: bodyLength:"+bodyLength);
+
+        if(bufferCount<2+bodyLength)
+        {
+            return;
+        }
+
+        string str= System.Text.Encoding.Default.GetString(readBuffer, 2, bodyLength);
+        int start = 2 + bodyLength;
+        int count = bufferCount - start;
+        Array.Copy(readBuffer, start, readBuffer, 0,count);
+        bufferCount -= start;
+
+
+
+        Debug.Log("Receive sucsess!:" + str);
+        recvStr =recvStr+"\n"+System.DateTime.Now.ToShortTimeString()+"\t" + str;
+        text.text = recvStr;
     }
 
     public void Connection()
@@ -62,6 +99,7 @@ public class Echo : MonoBehaviour
         catch (SocketException ex)
         {
             Debug.LogError("Socket connect failed:" + ex.ToString());
+
         }
 
     }
