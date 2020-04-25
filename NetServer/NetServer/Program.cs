@@ -84,15 +84,15 @@ namespace NetServer
                 Console.WriteLine("【Socket Close】");
                 return false;
             }
-            string recvStr = System.Text.Encoding.Default.GetString(cs.readBuffer, 2, count - 2);
+            string recvStr = System.Text.Encoding.UTF8.GetString(cs.readBuffer, 2, count - 2);
             Console.WriteLine("【服务器接收】" + recvStr);
 
             sendStr = socket.RemoteEndPoint.ToString() + ":" + recvStr;
-            byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
+            byte[] sendBytes = System.Text.Encoding.UTF8.GetBytes(sendStr);
             byte[] sendLength = BitConverter.GetBytes((Int16)sendBytes.Length);
             sendBytes = sendLength.Concat(sendBytes).ToArray();
 
-            Console.WriteLine("【服务器】 转发:" + Encoding.Default.GetString(sendBytes));
+            Console.WriteLine("【服务器】 转发:" + Encoding.UTF8.GetString(sendBytes));
             foreach (var v in clientDic.Values)
             {
                 int sendCount = v.socket.Send(sendBytes);
